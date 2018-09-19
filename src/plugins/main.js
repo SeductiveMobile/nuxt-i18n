@@ -3,6 +3,7 @@ import VueI18n from 'vue-i18n'
 
 Vue.use(VueI18n)
 
+
 export default async ({ app, route, store, req }) => {
   // Options
   const lazy = <%= options.lazy %>
@@ -47,10 +48,32 @@ export default async ({ app, route, store, req }) => {
   }
   <% } %>
 
+  // Load locale Settings form server side
+  const locales = await store.dispatch("locales/loadLocales")
+  const localeCodes = store.getters['locales/i18nLocales']
+  const defaultLocaleCode = store.getters['locales/defaultLocaleCode']
+  const messages = {}
+
+  const translationsPromises = locales.map(async l => {
+    return {
+      "locale_code": l.locale_code,
+      "messages": await store.dispatch("locales/loadLocaleJSONFile", l.localization_file.file)
+    }
+  })
+  const translates = await Promise.all(translationsPromises)
+  translates.forEach(t => {
+    messages[t.locale_code] = t.messages
+  })
+
+  const vueI18n = {
+    fallbackLocale: defaultLocaleCode,
+    messages: messages
+  }
+
   // Set instance options
-  app.i18n = new VueI18n(<%= JSON.stringify(options.vueI18n) %>)
-  app.i18n.locales = <%= JSON.stringify(options.locales) %>
-  app.i18n.defaultLocale = '<%= options.defaultLocale %>'
+  app.i18n = new VueI18n(vueI18n)
+  app.i18n.locales = localeCodes
+  app.i18n.defaultLocale = defaultLocaleCode
   app.i18n.differentDomains = <%= options.differentDomains %>
   app.i18n.forwardedHost = <%= options.forwardedHost %>
   app.i18n.routesNameSeparator = '<%= options.routesNameSeparator %>'
